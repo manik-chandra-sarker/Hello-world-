@@ -29,6 +29,9 @@
         <!-- MacroDroid package querying -->
         <package android:name="com.arlosoft.macrodroid" />
         <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
             <action android:name="net.dinglisch.android.tasker.ACTION_SPEECH_COMMAND" />
         </intent>
     </queries>

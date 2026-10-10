@@ -36,5 +36,8 @@ class ExampleRobolectricTest {
     // Default action
     assertEquals("net.dinglisch.android.tasker.ACTION_SPEECH_COMMAND", settings.broadcastAction.value)
     assertEquals("voice_command", settings.extraKey.value)
+
+    // TTS default gender must be Male
+    assertEquals("Male", settings.ttsGender.value)
   }
 }

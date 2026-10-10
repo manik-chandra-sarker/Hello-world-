@@ -37,6 +37,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val vadSensitivity: StateFlow<Float> = settingsManager.vadSensitivity
     val silencePauseMs: StateFlow<Long> = settingsManager.silencePauseMs
     val ttsEnabled: StateFlow<Boolean> = settingsManager.ttsEnabled
+    val ttsGender: StateFlow<String> = settingsManager.ttsGender
     val ttsPitch: StateFlow<Float> = settingsManager.ttsPitch
     val ttsRate: StateFlow<Float> = settingsManager.ttsRate
     val ttsTemplate: StateFlow<String> = settingsManager.ttsTemplate
@@ -97,6 +98,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         settingsManager.setTtsEnabled(enabled)
     }
 
+    fun setTtsGender(gender: String) {
+        settingsManager.setTtsGender(gender)
+        app.ttsManager.setVoiceGender(gender)
+    }
+
     fun setTtsPitch(pitch: Float) {
         settingsManager.setTtsPitch(pitch)
     }
@@ -113,11 +119,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         settingsManager.setBootStartEnabled(enabled)
     }
 
-    fun testTts(sampleText: String = "VoiceBridge TTS test successful. Speech synthesis is active.") {
+    fun testTts(sampleText: String = "VoiceBridge male voice synthesis verified. Ready for voice commands.") {
         app.ttsManager.speak(
             text = sampleText,
             pitch = ttsPitch.value,
-            rate = ttsRate.value
+            rate = ttsRate.value,
+            gender = ttsGender.value
         )
     }
 

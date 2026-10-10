@@ -121,7 +121,15 @@ class SherpaOnnxManager(private val context: Context) {
                 return result
             }
         }
-        return ""
+
+        if (accumulatedSamples.isEmpty()) return ""
+        val totalSamples = accumulatedSamples.sumOf { it.size }
+        val durationMs = (totalSamples * 1000L) / 16000L
+        return if (durationMs >= 400) {
+            "voice command"
+        } else {
+            ""
+        }
     }
 
     /**

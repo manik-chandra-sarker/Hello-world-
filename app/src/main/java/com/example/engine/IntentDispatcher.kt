@@ -106,7 +106,8 @@ class IntentDispatcher(
                     ttsManager.speak(
                         text = speechReply,
                         pitch = settingsManager.ttsPitch.value,
-                        rate = settingsManager.ttsRate.value
+                        rate = settingsManager.ttsRate.value,
+                        gender = settingsManager.ttsGender.value
                     )
                 }
 
@@ -158,33 +159,41 @@ class IntentDispatcher(
         extraValue: String,
         receiverTarget: String
     ) {
-        val intent = Intent(action).apply {
+        // 1. Build master automation intent with all standard extras
+        val globalIntent = Intent(action).apply {
             putExtra(extraKey, extraValue)
+            putExtra("voice_command", extraValue)
+            putExtra("command", extraValue)
+            putExtra("text", extraValue)
+            putExtra("phrase", extraValue)
+            putExtra("speech", extraValue)
             putExtra("source", "VoiceBridge")
             putExtra("timestamp", System.currentTimeMillis())
             addFlags(Intent.FLAG_INCLUDE_STOPPED_PACKAGES)
-
-            when (receiverTarget.lowercase(Locale.ROOT)) {
-                "tasker" -> {
-                    // Tasker package identifier
-                    setPackage("net.dinglisch.android.taskerm")
-                }
-                "macrodroid" -> {
-                    // MacroDroid package identifier
-                    setPackage("com.arlosoft.macrodroid")
-                }
-                else -> {
-                    // Global Broadcast (Tasker, MacroDroid, Automate, etc.)
-                }
-            }
         }
 
+        // 2. Send global broadcast (matches Tasker & MacroDroid Intent Received profiles)
         try {
-            context.sendBroadcast(intent)
+            context.sendBroadcast(globalIntent)
+            Log.i(tag, "Dispatched global broadcast: action=$action, $extraKey='$extraValue'")
         } catch (e: Exception) {
-            // If explicit package fails (e.g. Tasker package variation), send global
-            intent.setPackage(null)
-            context.sendBroadcast(intent)
+            Log.e(tag, "Global broadcast error: ${e.message}")
+        }
+
+        // 3. Send explicit package broadcast to guarantee delivery on Android 11+
+        val targetPackages = when (receiverTarget.lowercase(Locale.ROOT)) {
+            "tasker" -> listOf("net.dinglisch.android.taskerm", "net.dinglisch.android.tasker")
+            "macrodroid" -> listOf("com.arlosoft.macrodroid")
+            else -> listOf("net.dinglisch.android.taskerm", "net.dinglisch.android.tasker", "com.arlosoft.macrodroid")
+        }
+
+        for (pkg in targetPackages) {
+            try {
+                val targeted = Intent(globalIntent).apply {
+                    setPackage(pkg)
+                }
+                context.sendBroadcast(targeted)
+            } catch (ignored: Exception) {}
         }
     }
 }

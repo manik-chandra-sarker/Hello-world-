@@ -64,8 +64,13 @@ class SettingsManager private constructor(context: Context) {
     )
     val ttsEnabled: StateFlow<Boolean> = _ttsEnabled.asStateFlow()
 
+    private val _ttsGender = MutableStateFlow(
+        prefs.getString(KEY_TTS_GENDER, "Male") ?: "Male"
+    )
+    val ttsGender: StateFlow<String> = _ttsGender.asStateFlow()
+
     private val _ttsPitch = MutableStateFlow(
-        prefs.getFloat(KEY_TTS_PITCH, 1.0f)
+        prefs.getFloat(KEY_TTS_PITCH, 0.92f)
     )
     val ttsPitch: StateFlow<Float> = _ttsPitch.asStateFlow()
 
@@ -146,6 +151,11 @@ class SettingsManager private constructor(context: Context) {
         _ttsEnabled.value = enabled
     }
 
+    fun setTtsGender(gender: String) {
+        prefs.edit().putString(KEY_TTS_GENDER, gender).apply()
+        _ttsGender.value = gender
+    }
+
     fun setTtsPitch(pitch: Float) {
         val clamped = pitch.coerceIn(0.5f, 2.0f)
         prefs.edit().putFloat(KEY_TTS_PITCH, clamped).apply()
@@ -188,6 +198,7 @@ class SettingsManager private constructor(context: Context) {
         private const val KEY_VAD_SENSITIVITY = "vad_sensitivity"
         private const val KEY_SILENCE_PAUSE_MS = "silence_pause_ms"
         private const val KEY_TTS_ENABLED = "tts_enabled"
+        private const val KEY_TTS_GENDER = "tts_gender"
         private const val KEY_TTS_PITCH = "tts_pitch"
         private const val KEY_TTS_RATE = "tts_rate"
         private const val KEY_TTS_TEMPLATE = "tts_template"

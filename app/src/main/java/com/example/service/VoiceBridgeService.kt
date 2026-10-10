@@ -13,12 +13,14 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.IBinder
+import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.MainActivity
 import com.example.R
 import com.example.VoiceBridgeApp
 import com.example.data.SettingsManager
+import com.example.engine.ContinuousSpeechManager
 import com.example.engine.IntentDispatcher
 import com.example.engine.SherpaOnnxManager
 import com.example.engine.SileroVadDetector
@@ -43,6 +45,7 @@ class VoiceBridgeService : Service() {
     private lateinit var ttsManager: TtsManager
     private lateinit var intentDispatcher: IntentDispatcher
 
+    private var continuousSpeechManager: ContinuousSpeechManager? = null
     private var audioRecord: AudioRecord? = null
     private val isRecording = AtomicBoolean(false)
     private var recordingThread: Thread? = null
@@ -59,6 +62,27 @@ class VoiceBridgeService : Service() {
         intentDispatcher = app.intentDispatcher
 
         createNotificationChannel()
+
+        // Initialize continuous on-device speech recognizer
+        initContinuousSpeechRecognizer()
+    }
+
+    private fun initContinuousSpeechRecognizer() {
+        continuousSpeechManager = ContinuousSpeechManager(
+            context = this,
+            onSpeechResult = { phrase ->
+                dispatchRecognizedVoice(phrase)
+            },
+            onRmsUpdate = { rms ->
+                _audioAmplitude.value = rms
+            },
+            onSpeechStateUpdate = { isSpeech ->
+                _isSpeechActive.value = isSpeech
+            },
+            onPartialSpeechUpdate = { partial ->
+                _lastTranscribedPhrase.value = partial
+            }
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -66,6 +90,7 @@ class VoiceBridgeService : Service() {
         Log.i(tag, "onStartCommand action: $action")
 
         if (action == ACTION_STOP_SERVICE) {
+            stopContinuousListening()
             stopAudioRecording()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -88,9 +113,23 @@ class VoiceBridgeService : Service() {
 
         _isServiceRunning.value = true
         settingsManager.setServiceEnabled(true)
-        startAudioRecording()
+
+        // Start continuous speech recognition
+        if (SpeechRecognizer.isRecognitionAvailable(this)) {
+            startContinuousListening()
+        } else {
+            startAudioRecording()
+        }
 
         return START_STICKY
+    }
+
+    private fun startContinuousListening() {
+        continuousSpeechManager?.startListening()
+    }
+
+    private fun stopContinuousListening() {
+        continuousSpeechManager?.stopListening()
     }
 
     private fun startAudioRecording() {
@@ -141,9 +180,8 @@ class VoiceBridgeService : Service() {
 
                 audioRecord = record
                 record.startRecording()
-                Log.i(tag, "AudioRecord started at 16kHz mono")
+                Log.i(tag, "AudioRecord fallback started at 16kHz mono")
 
-                // Chunks of 512 samples (~32ms) optimal for Silero VAD
                 val chunkSize = 512
                 val buffer = ShortArray(chunkSize)
 
@@ -155,11 +193,9 @@ class VoiceBridgeService : Service() {
                     val read = record.read(buffer, 0, chunkSize)
                     if (read <= 0) continue
 
-                    // 1. RMS amplitude calculation for UI visualizer
                     val rms = sileroVad.calculateRmsAmplitude(buffer, read)
                     _audioAmplitude.value = rms
 
-                    // 2. Thread-safe atomic sensitivity fetch
                     val sensitivity = settingsManager.getVadSensitivity()
                     val (isSpeech, _) = sileroVad.isSpeech(buffer, read, sensitivity)
 
@@ -173,24 +209,19 @@ class VoiceBridgeService : Service() {
                             sherpaManager.resetStream()
                         }
 
-                        // Feed streaming zipformer
                         accumulatedSamples.add(buffer.copyOf(read))
                         sherpaManager.acceptSamples(buffer, read)
                     } else {
-                        // Silence
                         if (isUtteranceActive) {
-                            // Utterance in progress: track silence pause
                             val now = System.currentTimeMillis()
                             if (silenceStartTimeMs == 0L) {
                                 silenceStartTimeMs = now
                             }
 
-                            // Thread-safe atomic silence pause delay fetch (default 1800ms)
                             val silencePauseDelay = settingsManager.getSilencePauseMs()
                             val silenceElapsed = now - silenceStartTimeMs
 
                             if (silenceElapsed >= silencePauseDelay) {
-                                // Full silence pause duration reached! End utterance
                                 _isSpeechActive.value = false
                                 isUtteranceActive = false
                                 silenceStartTimeMs = 0L
@@ -202,12 +233,10 @@ class VoiceBridgeService : Service() {
                                 accumulatedSamples.clear()
                             }
                         } else {
-                            // Idle silence: VAD filters out to conserve CPU & battery!
                             _isSpeechActive.value = false
                         }
                     }
                 }
-
             } catch (e: Throwable) {
                 Log.d(tag, "Audio loop completed or interrupted: ${e.message}")
             } finally {
@@ -263,6 +292,7 @@ class VoiceBridgeService : Service() {
             _lastTranscribedPhrase.value = phrase
             _lastDispatchedAction.value = settingsManager.broadcastAction.value
             _dispatchedCount.value = _dispatchedCount.value + 1
+            sherpaManager.setHypothesis(phrase)
             intentDispatcher.processAndDispatch(phrase)
         }
     }
@@ -315,6 +345,9 @@ class VoiceBridgeService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.i(tag, "VoiceBridgeService onDestroy")
+        stopContinuousListening()
+        continuousSpeechManager?.destroy()
+        continuousSpeechManager = null
         stopAudioRecording()
         _isServiceRunning.value = false
         settingsManager.setServiceEnabled(false)
@@ -365,14 +398,12 @@ class VoiceBridgeService : Service() {
             context.startService(intent)
         }
 
-        /**
-         * Simulates a recognized phrase directly through the engine pipeline for testing.
-         */
         fun simulateVoiceCommand(context: Context, phrase: String) {
             val app = context.applicationContext as? VoiceBridgeApp ?: return
             _lastTranscribedPhrase.value = phrase
             _lastDispatchedAction.value = app.settingsManager.broadcastAction.value
             _dispatchedCount.value = _dispatchedCount.value + 1
+            app.sherpaManager.setHypothesis(phrase)
             app.intentDispatcher.processAndDispatch(phrase)
         }
     }

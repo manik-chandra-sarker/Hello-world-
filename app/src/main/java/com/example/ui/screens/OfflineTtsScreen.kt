@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -52,6 +53,7 @@ fun OfflineTtsScreen(
     val vadSensitivity by viewModel.vadSensitivity.collectAsState()
     val silencePauseMs by viewModel.silencePauseMs.collectAsState()
     val ttsEnabled by viewModel.ttsEnabled.collectAsState()
+    val ttsGender by viewModel.ttsGender.collectAsState()
     val ttsPitch by viewModel.ttsPitch.collectAsState()
     val ttsRate by viewModel.ttsRate.collectAsState()
     val ttsTemplate by viewModel.ttsTemplate.collectAsState()
@@ -131,6 +133,7 @@ fun OfflineTtsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         EngineDetailRow(label = "Model Architecture", value = "Streaming Zipformer (Transducer)")
                         EngineDetailRow(label = "Acoustic VAD", value = "Silero VAD (ONNX)")
+                        EngineDetailRow(label = "Recognition Language", value = "English (en-US)")
                         EngineDetailRow(label = "Audio Sampling", value = "16,000 Hz • 16-bit Mono")
                         EngineDetailRow(label = "Privacy & Cloud", value = "100% On-Device Offline • Zero Cloud Telemetry")
                     }
@@ -296,6 +299,49 @@ fun OfflineTtsScreen(
                     }
 
                     if (ttsEnabled) {
+                        // Voice Gender Selector (Male by default)
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Voice Gender",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Text(
+                                    text = if (ttsGender.equals("Male", ignoreCase = true)) "Male Voice Active" else "Female Voice Active",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (ttsGender.equals("Male", ignoreCase = true)) EmeraldActive else CyanNeon,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                FilterChip(
+                                    selected = ttsGender.equals("Male", ignoreCase = true),
+                                    onClick = { viewModel.setTtsGender("Male") },
+                                    label = { Text("Male Voice (Default)") },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("tts_gender_male_chip")
+                                )
+                                FilterChip(
+                                    selected = ttsGender.equals("Female", ignoreCase = true),
+                                    onClick = { viewModel.setTtsGender("Female") },
+                                    label = { Text("Female Voice") },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("tts_gender_female_chip")
+                                )
+                            }
+                        }
+
                         // Voice Pitch Slider
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
@@ -358,7 +404,7 @@ fun OfflineTtsScreen(
                         )
 
                         Button(
-                            onClick = { viewModel.testTts("Testing VoiceBridge speech synthesis. Audio system verified.") },
+                            onClick = { viewModel.testTts("Testing VoiceBridge male voice synthesis. Audio system verified.") },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag("test_voice_synthesis_button"),
