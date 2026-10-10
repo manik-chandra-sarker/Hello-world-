@@ -1,0 +1,6 @@
+{
+  "name": "VoiceBridge",
+  "description": "Offline continuous speech-to-text background service broadcasting recognized voice commands to Tasker and MacroDroid",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">VoiceBridge</string>
+    <string name="service_notification_title">VoiceBridge STT Service</string>
+    <string name="service_notification_desc">Continuous voice command listener active</string>
+    <string name="service_channel_name">VoiceBridge Audio Service</string>
+    <string name="service_channel_desc">Shows background speech recognition service status</string>
+</resources>

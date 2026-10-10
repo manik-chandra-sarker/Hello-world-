@@ -1,0 +1,14 @@
+{
+  "engine": "Sherpa-ONNX",
+  "architecture": "Streaming Zipformer (Transducer)",
+  "vad": "Silero VAD ONNX",
+  "sample_rate": 16000,
+  "channels": 1,
+  "bit_depth": 16,
+  "silence_pause_default_ms": 1800,
+  "vad_model_path": "silero_vad.onnx",
+  "encoder": "encoder.onnx",
+  "decoder": "decoder.onnx",
+  "joiner": "joiner.onnx",
+  "tokens": "tokens.txt"
+}
