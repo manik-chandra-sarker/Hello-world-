@@ -208,15 +208,10 @@ class VoiceBridgeService : Service() {
                     }
                 }
 
-                try {
-                    record.stop()
-                    record.release()
-                } catch (e: Exception) {
-                    Log.e(tag, "Error stopping AudioRecord: ${e.message}")
-                }
-            } catch (e: Exception) {
-                Log.e(tag, "Audio loop exception: ${e.message}", e)
+            } catch (e: Throwable) {
+                Log.d(tag, "Audio loop completed or interrupted: ${e.message}")
             } finally {
+                safeStopAndReleaseRecord(null)
                 isRecording.set(false)
                 _isServiceRunning.value = false
                 _audioAmplitude.value = 0f
@@ -227,17 +222,38 @@ class VoiceBridgeService : Service() {
         recordingThread?.start()
     }
 
-    private fun stopAudioRecording() {
-        isRecording.set(false)
-        recordingThread?.interrupt()
-        recordingThread = null
-        try {
-            audioRecord?.stop()
-            audioRecord?.release()
-        } catch (e: Exception) {
-            Log.e(tag, "Error releasing AudioRecord: ${e.message}")
+    private fun safeStopAndReleaseRecord(recordToClean: AudioRecord?) {
+        val target = recordToClean ?: audioRecord ?: return
+        synchronized(this) {
+            try {
+                if (target.state == AudioRecord.STATE_INITIALIZED) {
+                    if (target.recordingState == AudioRecord.RECORDSTATE_RECORDING) {
+                        target.stop()
+                    }
+                    target.release()
+                }
+            } catch (t: Throwable) {
+                Log.d(tag, "Safe AudioRecord cleanup notice: ${t.message}")
+            }
+            if (audioRecord == target) {
+                audioRecord = null
+            }
         }
-        audioRecord = null
+    }
+
+    private fun stopAudioRecording() {
+        if (!isRecording.getAndSet(false)) {
+            return
+        }
+        val thread = recordingThread
+        recordingThread = null
+        thread?.interrupt()
+        try {
+            thread?.join(300)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+        safeStopAndReleaseRecord(null)
         _audioAmplitude.value = 0f
         _isSpeechActive.value = false
     }

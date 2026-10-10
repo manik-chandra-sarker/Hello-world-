@@ -112,6 +112,7 @@ class SileroVadDetector(private val context: Context) {
 
                 val inputs = mapOf("input" to inputTensor, "sr" to srTensor)
                 val output = ortSession?.run(inputs)
+                @Suppress("UNCHECKED_CAST")
                 val probValue = (output?.get(0)?.value as? Array<FloatArray>)?.get(0)?.get(0) ?: 0f
 
                 inputTensor.close()
